@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Advanced HTTP Status Alerts</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+		<link
+			rel="stylesheet"
+			href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+		/>
+		<style>
+			.alert-container {
+				position: fixed;
+				top: 1rem;
+				right: 1rem;
+				z-index: 1000;
+				width: 380px;
+				max-width: 90%;
+			}
+
+			.alert {
+				box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+					0 4px 6px -2px rgba(0, 0, 0, 0.05);
+				transform: translateX(120%);
+				transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+				opacity: 0;
+				margin-bottom: 1rem;
+				border-radius: 0.5rem;
+				overflow: hidden;
+				position: relative;
+			}
+
+			.alert.show {
+				transform: translateX(0);
+				opacity: 1;
+			}
+
+			.alert.fade {
+				transform: translateX(0);
+				opacity: 0;
+				transition: opacity 0.3s ease-in-out;
+			}
+
+			.alert.fade.show {
+				opacity: 1;
+			}
+
+			.alert.shake {
+				animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+				transform: translateX(0);
+			}
+
+			.alert.bounce {
+				animation: bounce 0.75s cubic-bezier(0.68, -0.55, 0.265, 1.55) both;
+			}
+
+			.alert.flip {
+				animation: flip 0.6s cubic-bezier(0.455, 0.03, 0.515, 0.955) both;
+			}
+
+			.progress-bar {
+				height: 4px;
+				width: 100%;
+				background-color: rgba(255, 255, 255, 0.2);
+				position: absolute;
+				bottom: 0;
+				left: 0;
+			}
+
+			.progress {
+				height: 100%;
+				width: 100%;
+				animation: progress linear;
+				border-radius: 0 0 0 0.5rem;
+			}
+
+			@keyframes progress {
+				from {
+					width: 100%;
+				}
+				to {
+					width: 0%;
+				}
+			}
+
+			@keyframes shake {
+				10%,
+				90% {
+					transform: translate3d(-1px, 0, 0);
+				}
+				20%,
+				80% {
+					transform: translate3d(2px, 0, 0);
+				}
+				30%,
+				50%,
+				70% {
+					transform: translate3d(-4px, 0, 0);
+				}
+				40%,
+				60% {
+					transform: translate3d(4px, 0, 0);
+				}
+			}
+
+			@keyframes bounce {
+				0% {
+					transform: translateY(-100px);
+					opacity: 0;
+				}
+				50% {
+					transform: translateY(20px);
+					opacity: 1;
+				}
+				70% {
+					transform: translateY(-10px);
+				}
+				90% {
+					transform: translateY(5px);
+				}
+				100% {
+					transform: translateY(0);
+				}
+			}
+
+			@keyframes flip {
+				0% {
+					transform: perspective(400px) rotateY(90deg);
+					opacity: 0;
+				}
+				40% {
+					transform: perspective(400px) rotateY(-20deg);
+				}
+				60% {
+					transform: perspective(400px) rotateY(10deg);
+					opacity: 1;
+				}
+				80% {
+					transform: perspective(400px) rotateY(-5deg);
+				}
+				100% {
+					transform: perspective(400px) rotateY(0deg);
+				}
+			}
+
+			.alert-icon {
+				width: 24px;
+				height: 24px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				border-radius: 50%;
+				background-color: rgba(255, 255, 255, 0.2);
+			}
+
+			.alert-count {
+				position: absolute;
+				top: -8px;
+				right: -8px;
+				background-color: #ef4444;
+				color: white;
+				border-radius: 50%;
+				width: 20px;
+				height: 20px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				font-size: 0.75rem;
+				font-weight: bold;
+			}
+
+			.alert-actions {
+				display: flex;
+				gap: 0.5rem;
+				margin-top: 0.5rem;
+			}
+
+			.alert-action-btn {
+				padding: 0.25rem 0.5rem;
+				border-radius: 0.25rem;
+				font-size: 0.75rem;
+				font-weight: 500;
+				transition: all 0.2s;
+				background-color: rgba(255, 255, 255, 0.2);
+			}
+
+			.alert-action-btn:hover {
+				background-color: rgba(255, 255, 255, 0.3);
+			}
+
+			.settings-panel {
+				transition: all 0.3s ease;
+				max-height: 0;
+				overflow: hidden;
+			}
+
+			.settings-panel.open {
+				max-height: 500px;
+			}
+
+			.dark-mode .alert {
+				box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3),
+					0 4px 6px -2px rgba(0, 0, 0, 0.2);
+			}
+		</style>
+	</head>
+	<body class="bg-gray-100 min-h-screen p-8 transition-colors duration-300">
+		<div class="alert-container" id="alertContainer"></div>
+
+		<div
+			class="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden p-6 transition-colors duration-300"
+		>
+			<div class="flex justify-between items-center mb-6">
+				<h1 class="text-3xl font-bold text-gray-800 dark:text-white">
+					HTTP Status Alert Demo
+				</h1>
+				<button
+					id="darkModeToggle"
+					class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+				>
+					<i class="fas fa-moon dark:hidden"></i>
+					<i class="fas fa-sun hidden dark:block"></i>
+				</button>
+			</div>
+
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				<!-- 1xx Informational -->
+				<button
+					onclick="showAlert(102, 'Processing your request')"
+					class="bg-blue-200 hover:bg-blue-300 dark:bg-blue-700 dark:hover:bg-blue-600 text-blue-800 dark:text-blue-100 font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+				>
+					<i class="fas fa-info-circle"></i> 102 Processing
+				</button>
+
+				<!-- 2xx Success -->
+				<button
+					onclick="showAlert(201, 'Resource created successfully')"
+					class="bg-green-500 hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+				>
+					<i class="fas fa-check-circle"></i> 201 Created
+				</button>
+
+				<!-- 3xx Redirection -->
+				<button
+					onclick="showAlert(304, 'Content not modified')"
+					class="bg-yellow-200 hover:bg-yellow-300 dark:bg-yellow-700 dark:hover:bg-yellow-600 text-yellow-800 dark:text-yellow-100 font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+				>
+					<i class="fas fa-redo"></i> 304 Not Modified
+				</button>
+
+				<!-- 4xx Client Errors -->
+				<button
+					onclick="showAlert(404, 'User profile not found')"
+					class="bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700 text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+				>
+					<i class="fas fa-search"></i> 404 Not Found
+				</button>
+
+				<button
+					onclick="showAlert(400, 'Invalid email format provided')"
+					class="bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700 text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+				>
+					<i class="fas fa-exclamation-circle"></i> 400 Bad Request
+				</button>
+
+				<button
+					onclick="showAlert(401, 'Please login to access this resource')"
+					class="bg-purple-500 hover:bg-purple-600 dark:bg-purple-600 dark:hover:bg-purple-700 text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+				>
+					<i class="fas fa-lock"></i> 401 Unauthorized
+				</button>
+
+				<button
+					onclick="showAlert(403, 'You do not have permission to view this page')"
+					class="bg-indigo-500 hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+				>
+					<i class="fas fa-ban"></i> 403 Forbidden
+				</button>
+
+				<button
+					onclick="showAlert(405, 'POST method not supported for this endpoint')"
+					class="bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+				>
+					<i class="fas fa-exchange-alt"></i> 405 Method Not Allowed
+				</button>
+
+				<button
+					onclick="showAlert(429, 'Too many requests, please try again later')"
+					class="bg-orange-500 hover:bg-orange-600 dark:bg-orange-600 dark:hover:bg-orange-700 text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+				>
+					<i class="fas fa-bolt"></i> 429 Too Many Requests
+				</button>
+
+				<!-- 5xx Server Errors -->
+				<button
+					onclick="showAlert(500, 'Server encountered an unexpected condition')"
+					class="bg-gray-700 hover:bg-gray-800 dark:bg-gray-600 dark:hover:bg-gray-700 text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+				>
+					<i class="fas fa-server"></i> 500 Server Error
+				</button>
+
+				<button
+					onclick="showAlert(502, 'Bad gateway - upstream server error')"
+					class="bg-gray-500 hover:bg-gray-600 dark:bg-gray-500 dark:hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+				>
+					<i class="fas fa-network-wired"></i> 502 Bad Gateway
+				</button>
+
+				<button
+					onclick="showAlert(503, 'Service temporarily unavailable')"
+					class="bg-red-700 hover:bg-red-800 dark:bg-red-800 dark:hover:bg-red-900 text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+				>
+					<i class="fas fa-tools"></i> 503 Service Unavailable
+				</button>
+
+				<!-- Custom Status -->
+				<button
+					onclick="showCustomAlert()"
+					class="bg-gradient-to-r from-green-400 to-blue-500 hover:from-green-500 hover:to-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+				>
+					<i class="fas fa-cog"></i> Custom Alert
+				</button>
+
+				<!-- Stack Alerts -->
+				<button
+					onclick="stackAlerts()"
+					class="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
+				>
+					<i class="fas fa-layer-group"></i> Stack Alerts
+				</button>
+			</div>
+
+			<div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+				<div class="flex justify-between items-center mb-4">
+					<h2 class="text-xl font-semibold text-gray-700 dark:text-gray-300">
+						Alert Settings
+					</h2>
+					<button
+						id="settingsToggle"
+						class="text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+					>
+						<i class="fas fa-chevron-down"></i>
+					</button>
+				</div>
+
+				<div id="settingsPanel" class="settings-panel">
+					<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+						<div>
+							<label
+								class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+								>Auto Close (seconds)</label
+							>
+							<input
+								type="number"
+								id="autoCloseTime"
+								value="5"
+								min="1"
+								max="60"
+								class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+							/>
+						</div>
+
+						<div>
+							<label
+								class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+								>Animation</label
+							>
+							<select
+								id="animationType"
+								class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+							>
+								<option value="slide">Slide In</option>
+								<option value="fade">Fade In</option>
+								<option value="shake">Shake</option>
+								<option value="bounce">Bounce</option>
+								<option value="flip">Flip</option>
+							</select>
+						</div>
+
+						<div>
+							<label
+								class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+								>Position</label
+							>
+							<select
+								id="alertPosition"
+								class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+							>
+								<option value="top-right">Top Right</option>
+								<option value="top-left">Top Left</option>
+								<option value="bottom-right">Bottom Right</option>
+								<option value="bottom-left">Bottom Left</option>
+								<option value="top-center">Top Center</option>
+								<option value="bottom-center">Bottom Center</option>
+							</select>
+						</div>
+					</div>
+
+					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+						<div class="flex items-center">
+							<input
+								type="checkbox"
+								id="showActions"
+								class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700"
+							/>
+							<label
+								for="showActions"
+								class="ml-2 block text-sm text-gray-700 dark:text-gray-300"
+								>Show action buttons</label
+							>
+						</div>
+
+						<div class="flex items-center">
+							<input
+								type="checkbox"
+								id="showCount"
+								class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700"
+							/>
+							<label
+								for="showCount"
+								class="ml-2 block text-sm text-gray-700 dark:text-gray-300"
+								>Show alert count</label
+							>
+						</div>
+
+						<div class="flex items-center">
+							<input
+								type="checkbox"
+								id="pauseOnHover"
+								class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700"
+								checked
+							/>
+							<label
+								for="pauseOnHover"
+								class="ml-2 block text-sm text-gray-700 dark:text-gray-300"
+								>Pause on hover</label
+							>
+						</div>
+
+						<div class="flex items-center">
+							<input
+								type="checkbox"
+								id="stackAlerts"
+								class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700"
+							/>
+							<label
+								for="stackAlerts"
+								class="ml-2 block text-sm text-gray-700 dark:text-gray-300"
+								>Stack alerts</label
+							>
+						</div>
+					</div>
+
+					<div class="mt-4 flex justify-end gap-2">
+						<button
+							onclick="showRandomAlert()"
+							class="bg-pink-500 hover:bg-pink-600 dark:bg-pink-600 dark:hover:bg-pink-700 text-white font-medium py-2 px-4 rounded-lg transition-all"
+						>
+							Random Alert
+						</button>
+
+						<button
+							onclick="clearAllAlerts()"
+							class="bg-gray-500 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-all"
+						>
+							Clear All
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			// Status code configurations
+			const statusConfig = {
+				100: {
+					title: 'Continue',
+					icon: 'info-circle',
+					color: 'bg-blue-200',
+					text: 'text-blue-800',
+				},
+				102: {
+					title: 'Processing',
+					icon: 'spinner',
+					color: 'bg-blue-200',
+					text: 'text-blue-800',
+				},
+				200: {
+					title: 'OK',
+					icon: 'check-circle',
+					color: 'bg-green-500',
+					text: 'text-white',
+				},
+				201: {
+					title: 'Created',
+					icon: 'plus-circle',
+					color: 'bg-green-500',
+					text: 'text-white',
+				},
+				204: {
+					title: 'No Content',
+					icon: 'minus-circle',
+					color: 'bg-green-500',
+					text: 'text-white',
+				},
+				304: {
+					title: 'Not Modified',
+					icon: 'redo',
+					color: 'bg-yellow-200',
+					text: 'text-yellow-800',
+				},
+				400: {
+					title: 'Bad Request',
+					icon: 'exclamation-circle',
+					color: 'bg-red-500',
+					text: 'text-white',
+				},
+				401: {
+					title: 'Unauthorized',
+					icon: 'lock',
+					color: 'bg-purple-500',
+					text: 'text-white',
+				},
+				403: {
+					title: 'Forbidden',
+					icon: 'ban',
+					color: 'bg-indigo-500',
+					text: 'text-white',
+				},
+				404: {
+					title: 'Not Found',
+					icon: 'search',
+					color: 'bg-amber-500',
+					text: 'text-white',
+				},
+				405: {
+					title: 'Method Not Allowed',
+					icon: 'exchange-alt',
+					color: 'bg-blue-500',
+					text: 'text-white',
+				},
+				408: {
+					title: 'Request Timeout',
+					icon: 'clock',
+					color: 'bg-orange-500',
+					text: 'text-white',
+				},
+				409: {
+					title: 'Conflict',
+					icon: 'users-slash',
+					color: 'bg-yellow-600',
+					text: 'text-white',
+				},
+				429: {
+					title: 'Too Many Requests',
+					icon: 'bolt',
+					color: 'bg-orange-500',
+					text: 'text-white',
+				},
+				500: {
+					title: 'Internal Server Error',
+					icon: 'server',
+					color: 'bg-gray-700',
+					text: 'text-white',
+				},
+				502: {
+					title: 'Bad Gateway',
+					icon: 'network-wired',
+					color: 'bg-gray-500',
+					text: 'text-white',
+				},
+				503: {
+					title: 'Service Unavailable',
+					icon: 'tools',
+					color: 'bg-red-700',
+					text: 'text-white',
+				},
+				504: {
+					title: 'Gateway Timeout',
+					icon: 'hourglass-half',
+					color: 'bg-gray-500',
+					text: 'text-white',
+				},
+			};
+
+			let alertCount = 0;
+			let alertTimers = {};
+
+			// Initialize dark mode
+			function initDarkMode() {
+				if (
+					localStorage.getItem('darkMode') === 'true' ||
+					(!localStorage.getItem('darkMode') &&
+						window.matchMedia('(prefers-color-scheme: dark)').matches)
+				) {
+					document.documentElement.classList.add('dark');
+					localStorage.setItem('darkMode', 'true');
+				} else {
+					document.documentElement.classList.remove('dark');
+					localStorage.setItem('darkMode', 'false');
+				}
+			}
+
+			// Toggle dark mode
+			function toggleDarkMode() {
+				if (document.documentElement.classList.contains('dark')) {
+					document.documentElement.classList.remove('dark');
+					localStorage.setItem('darkMode', 'false');
+				} else {
+					document.documentElement.classList.add('dark');
+					localStorage.setItem('darkMode', 'true');
+				}
+			}
+
+			// Set alert container position
+			function setAlertPosition(position) {
+				const container = document.getElementById('alertContainer');
+				container.className = 'alert-container';
+
+				switch (position) {
+					case 'top-left':
+						container.classList.add(
+							'top-4',
+							'left-4',
+							'right-auto',
+							'bottom-auto'
+						);
+						break;
+					case 'bottom-right':
+						container.classList.add(
+							'bottom-4',
+							'right-4',
+							'top-auto',
+							'left-auto'
+						);
+						break;
+					case 'bottom-left':
+						container.classList.add(
+							'bottom-4',
+							'left-4',
+							'top-auto',
+							'right-auto'
+						);
+						break;
+					case 'top-center':
+						container.classList.add(
+							'top-4',
+							'left-1/2',
+							'transform',
+							'-translate-x-1/2',
+							'right-auto',
+							'bottom-auto'
+						);
+						container.style.width = 'auto';
+						break;
+					case 'bottom-center':
+						container.classList.add(
+							'bottom-4',
+							'left-1/2',
+							'transform',
+							'-translate-x-1/2',
+							'top-auto',
+							'right-auto'
+						);
+						container.style.width = 'auto';
+						break;
+					default: // top-right
+						container.classList.add(
+							'top-4',
+							'right-4',
+							'left-auto',
+							'bottom-auto'
+						);
+				}
+			}
+
+			// Create an alert element
+			function createAlert(statusCode, message, options = {}) {
+				const config = statusConfig[statusCode] || {
+					title: `Status ${statusCode}`,
+					icon: 'info-circle',
+					color: 'bg-gray-500',
+					text: 'text-white',
+				};
+
+				const autoCloseTime =
+					parseInt(document.getElementById('autoCloseTime').value) * 1000;
+				const animationType = document.getElementById('animationType').value;
+				const showActions = document.getElementById('showActions').checked;
+				const showCount = document.getElementById('showCount').checked;
+				const pauseOnHover = document.getElementById('pauseOnHover').checked;
+
+				alertCount++;
+				const alertId = 'alert-' + Date.now();
+
+				const alertElement = document.createElement('div');
+				alertElement.id = alertId;
+				alertElement.className = `alert ${config.color} ${config.text}`;
+
+				// Add animation class based on type
+				if (animationType === 'fade') {
+					alertElement.classList.add('fade');
+				} else if (animationType === 'shake') {
+					alertElement.classList.add('shake');
+				} else if (animationType === 'bounce') {
+					alertElement.classList.add('bounce');
+				} else if (animationType === 'flip') {
+					alertElement.classList.add('flip');
+				} else {
+					alertElement.classList.add('slide');
+				}
+
+				// Add hover effect if pause on hover is enabled
+				if (pauseOnHover) {
+					alertElement.addEventListener('mouseenter', () => {
+						const progress = alertElement.querySelector('.progress');
+						if (progress) {
+							progress.style.animationPlayState = 'paused';
+						}
+
+						if (alertTimers[alertId]) {
+							clearTimeout(alertTimers[alertId]);
+						}
+					});
+
+					alertElement.addEventListener('mouseleave', () => {
+						const progress = alertElement.querySelector('.progress');
+						if (progress) {
+							progress.style.animationPlayState = 'running';
+						}
+
+						if (autoCloseTime > 0) {
+							alertTimers[alertId] = setTimeout(() => {
+								removeAlert(alertId);
+							}, autoCloseTime * (progress ? progress.offsetWidth / progress.parentElement.offsetWidth : 1));
+						}
+					});
+				}
+
+				// Build alert content
+				let actionsHTML = '';
+				if (showActions) {
+					actionsHTML = `
+                    <div class="alert-actions">
+                        <button onclick="alertAction('${alertId}', 'retry')" class="alert-action-btn">
+                            <i class="fas fa-redo mr-1"></i> Retry
+                        </button>
+                        <button onclick="alertAction('${alertId}', 'dismiss')" class="alert-action-btn">
+                            <i class="fas fa-times mr-1"></i> Dismiss
+                        </button>
+                    </div>
+                `;
+				}
+
+				let countHTML = '';
+				if (showCount) {
+					countHTML = `<div class="alert-count">${alertCount}</div>`;
+				}
+
+				alertElement.innerHTML = `
+                <div class="p-4 flex items-start">
+                    <div class="flex-shrink-0 relative">
+                        <div class="alert-icon">
+                            <i class="fas fa-${config.icon}"></i>
+                        </div>
+                        ${countHTML}
+                    </div>
+                    <div class="ml-3 flex-1">
+                        <h3 class="text-sm font-medium">${
+													config.title
+												} (${statusCode})</h3>
+                        <div class="mt-1 text-sm">${message}</div>
+                        ${actionsHTML}
+                    </div>
+                    <div class="ml-4 flex-shrink-0 flex">
+                        <button onclick="removeAlert('${alertId}')" class="rounded-md inline-flex text-gray-200 hover:text-white focus:outline-none">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                ${
+									autoCloseTime > 0
+										? `
+                <div class="progress-bar">
+                    <div class="progress ${config.color.replace(
+											'bg-',
+											'bg-'
+										)}" style="animation-duration: ${autoCloseTime}ms"></div>
+                </div>
+                `
+										: ''
+								}
+            `;
+
+				return alertElement;
+			}
+
+			// Show alert in the container
+			function showAlert(statusCode, message, options = {}) {
+				const alertContainer = document.getElementById('alertContainer');
+				const alertElement = createAlert(statusCode, message, options);
+
+				// Check if we should stack alerts
+				const stackAlerts = document.getElementById('stackAlerts').checked;
+				if (!stackAlerts) {
+					clearAllAlerts();
+				}
+
+				alertContainer.prepend(alertElement);
+
+				// Trigger animation
+				setTimeout(() => {
+					alertElement.classList.add('show');
+				}, 10);
+
+				// Auto remove after delay
+				const autoCloseTime =
+					parseInt(document.getElementById('autoCloseTime').value) * 1000;
+				if (autoCloseTime > 0) {
+					alertTimers[alertElement.id] = setTimeout(() => {
+						removeAlert(alertElement.id);
+					}, autoCloseTime);
+				}
+			}
+
+			// Remove alert with animation
+			function removeAlert(alertId) {
+				const alertElement = document.getElementById(alertId);
+				if (alertElement) {
+					alertElement.classList.remove('show');
+					alertElement.classList.add(
+						'opacity-0',
+						'transition-opacity',
+						'duration-300'
+					);
+
+					setTimeout(() => {
+						alertElement.remove();
+						delete alertTimers[alertId];
+					}, 300);
+				}
+			}
+
+			// Clear all alerts
+			function clearAllAlerts() {
+				const alertContainer = document.getElementById('alertContainer');
+				const alerts = alertContainer.querySelectorAll('.alert');
+
+				alerts.forEach((alert) => {
+					removeAlert(alert.id);
+				});
+
+				// Clear all timers
+				for (const timerId in alertTimers) {
+					clearTimeout(alertTimers[timerId]);
+					delete alertTimers[timerId];
+				}
+
+				alertCount = 0;
+			}
+
+			// Handle alert actions
+			function alertAction(alertId, action) {
+				const alertElement = document.getElementById(alertId);
+
+				switch (action) {
+					case 'retry':
+						// Simulate retry action
+						alertElement.querySelector('.alert-actions').innerHTML = `
+                        <div class="flex items-center text-sm">
+                            <i class="fas fa-spinner fa-spin mr-2"></i> Retrying...
+                        </div>
+                    `;
+
+						setTimeout(() => {
+							showAlert(200, 'Operation completed successfully after retry');
+							removeAlert(alertId);
+						}, 1500);
+						break;
+
+					case 'dismiss':
+						removeAlert(alertId);
+						break;
+				}
+			}
+
+			// Show custom alert
+			function showCustomAlert() {
+				const statusCode = prompt('Enter HTTP status code:', '200');
+				if (statusCode) {
+					const message = prompt(
+						'Enter alert message:',
+						'This is a custom alert message'
+					);
+					if (message) {
+						showAlert(parseInt(statusCode), message);
+					}
+				}
+			}
+
+			// Show random alert
+			function showRandomAlert() {
+				const statusCodes = Object.keys(statusConfig);
+				const randomCode = parseInt(
+					statusCodes[Math.floor(Math.random() * statusCodes.length)]
+				);
+				const messages = [
+					'Something went wrong with your request',
+					"The server couldn't process your input",
+					'Resource unavailable at this time',
+					'Authentication required for this action',
+					"You don't have permission to perform this action",
+					'The requested method is not supported',
+					'Server is currently experiencing issues',
+					'Operation completed successfully',
+					'Your request is being processed',
+					'Content has not been modified',
+					'Too many requests, please slow down',
+					'Resource created successfully',
+				];
+				const randomMessage =
+					messages[Math.floor(Math.random() * messages.length)];
+
+				showAlert(randomCode, randomMessage);
+			}
+
+			// Stack multiple alerts for demo
+			function stackAlerts() {
+				clearAllAlerts();
+
+				const statusCodes = [200, 400, 404, 500, 429, 201];
+				const messages = [
+					'Operation completed successfully',
+					'Invalid input detected',
+					'Resource not found',
+					'Internal server error occurred',
+					'Too many requests, please slow down',
+					'New resource created',
+				];
+
+				let delay = 0;
+				statusCodes.forEach((code, index) => {
+					setTimeout(() => {
+						showAlert(code, messages[index]);
+					}, delay);
+					delay += 500;
+				});
+			}
+
+			// Initialize the page
+			document.addEventListener('DOMContentLoaded', () => {
+				initDarkMode();
+				setAlertPosition('top-right');
+
+				// Set up event listeners
+				document
+					.getElementById('darkModeToggle')
+					.addEventListener('click', toggleDarkMode);
+
+				document
+					.getElementById('settingsToggle')
+					.addEventListener('click', () => {
+						const panel = document.getElementById('settingsPanel');
+						const icon = document.querySelector('#settingsToggle i');
+
+						panel.classList.toggle('open');
+						icon.classList.toggle('fa-chevron-down');
+						icon.classList.toggle('fa-chevron-up');
+					});
+
+				document
+					.getElementById('alertPosition')
+					.addEventListener('change', (e) => {
+						setAlertPosition(e.target.value);
+					});
+
+				// Demo alerts on page load
+				setTimeout(() => {
+					showAlert(200, 'Welcome to the HTTP Status Alert Demo');
+				}, 1000);
+
+				setTimeout(() => {
+					showAlert(102, 'Loading demo content...');
+				}, 2500);
+			});
+		</script>
+	</body>
+</html>
